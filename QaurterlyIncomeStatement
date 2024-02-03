@@ -1,0 +1,138 @@
+import re
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import time 
+import pandas as pd 
+
+# Web Scraping Section
+# --------------------
+
+# Create a WebDriver instance for Chrome
+driver = webdriver.Chrome(ChromeDriverManager().install())
+
+# Set up ChromeOptions
+chrome_options = Options()
+chrome_options.add_argument('--headless')  # Run in headless mode to avoid opening a visible browser window
+
+# Navigate to a webpage
+driver.get("https://finance.yahoo.com/quote/MSFT/financials")
+
+# Getting Quarterly Data
+# ----------------------
+
+# Try locating the button using CSS selector
+button_selector = "button.P\(0px\).M\(0px\).C\(\$linkColor\).Bd\(0px\).O\(n\)"
+try:
+    button = driver.find_element("css selector", button_selector)
+except Exception as e:
+    print(f"Exception: {e}")
+    #print(f"Page source:\n{driver.page_source}")
+    driver.quit()
+    exit()
+
+# Click the button to switch to Quarterly view
+button.click()
+
+time.sleep(5) 
+
+# End of Getting Quarterly Data 
+
+# Find an element by its ID (you may need to adjust the ID based on the structure of the webpage)
+element = driver.find_element("id", "mrt-node-Col1-1-Financials")
+
+# Display the text content of the element
+#print("Text Content:", element.text)
+
+# Extract and split the text content into lines
+lines = element.text.split('\n')
+
+# Close the browser
+driver.quit()
+
+# Data Manipulation Section
+# -------------------------
+
+# Identify the start and end indices for data extraction  MANUEL CHECK NEEDED 
+start_index = lines.index('Total Revenue')
+end_index = lines.index('Tax Effect of Unusual Items')
+
+# Extract relevant data between start and end indices
+data_lines = lines[start_index:end_index]
+
+# Organize the data into a list of lists
+organized_data = [line.split() for line in data_lines]
+#words_and_numbers = [item.split() for sublist in organized_data for item in sublist]
+
+# Process each sublist in organized_data accordingly
+for i, item in enumerate(organized_data):
+    organized_data[i] = [' '.join(item)] if i % 2 == 0 else item
+
+# Use even-indexed sublists as the index for the DataFrame
+index = [organized_data[i][0] for i in range(0, len(organized_data), 2)]
+
+# Relevant string from lines MANUEL CHECK NEEDED 
+date_string = lines[6] 
+
+# Find 'TTM' in the date_string
+ttm_index = date_string.find('TTM')
+
+# Extract 'TTM' and remove it from the date_string
+ttm = date_string[ttm_index: ttm_index + 3]
+date_string_without_ttm = date_string.replace(ttm, '')
+
+# Split the modified date_string_without_ttm into a list of dates
+dates_list = date_string_without_ttm.split('/')
+
+# Use regular expression to split by month, day, and year and format the dates
+formatted_dates = [re.sub(r'(\d{1,2})/(\d{1,2})/(\d{4})', lambda x: f'{int(x.group(1)):02d}{int(x.group(2)):02d}{int(x.group(3)) % 100:02d}', date) for date in dates_list]
+
+# Join the formatted dates with a space
+formatted_dates_with_space = ' '.join(formatted_dates)
+
+# Check and modify the date with '202' sequence
+formatted_dates_with_space_list = formatted_dates_with_space.split(' ')
+for i, date in enumerate(formatted_dates_with_space_list):
+    if '202' in date and date[4:6] != '202':
+        formatted_dates_with_space_list[i] = date[:4] + '0' + date[4:]
+
+# Join the modified dates back with a space
+input_string = ' '.join(formatted_dates_with_space_list)
+
+# Find the index of the first occurrence of '202'
+split_index = input_string.find('202') + len('202') + 1
+
+split_parts = []
+
+while '202' in input_string:
+    # Split the string at the determined index
+    first_part = input_string[:split_index]
+    second_part = input_string[split_index:]
+
+    # Append the current split to the list
+    split_parts.append(first_part)
+
+    # Find the index of the next occurrence of '202' MANUEL CHECK NEEDED (year 203x wont work)
+    split_index = second_part.find('202') + len('202') + 1
+
+    # Update the input_string for the next iteration
+    input_string = second_part
+
+# Append the remaining part to the list
+split_parts.append(input_string)
+
+split_parts = split_parts[0:-1]
+
+# Create a pandas DataFrame
+# Manually enter dates
+columns = ['TTM'] + split_parts
+
+# Adjust the list comprehension to handle varying sublist lengths
+data = {column: [organized_data[i][j] if j < len(organized_data[i]) else '' for i in range(1, len(organized_data), 2)] for j, column in enumerate(columns)}                       
+
+df = pd.DataFrame(data, columns=columns, index=index)
+
+
