@@ -48,6 +48,7 @@ index = [organized_data[i][0] for i in range(0, len(organized_data), 2)]
 #index
 
 # Create a pandas DataFrame
+# manually entered because the scraped format is annoying.
 columns = ['TTM', '6/29/2023', '6/29/2022', '6/29/2021', '6/29/2020']
 
 # Adjust the list comprehension to handle varying sublist lengths
