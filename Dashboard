@@ -1,0 +1,201 @@
+# Display excel spreadsheets in dashboard
+
+import dash
+from dash import html
+from dash import dcc
+from dash.dependencies import Input, Output
+import plotly.graph_objs as go
+import pandas as pd
+import yfinance as yf
+
+# Load the first spreadsheet
+xlsx_file1 = "PATH TO EXCEL FILES"
+xls1 = pd.ExcelFile(xlsx_file1)
+sheet_names1 = xls1.sheet_names
+
+# Load the second spreadsheet
+xlsx_file2 = "PATH TO EXCEL FILES"
+xls2 = pd.ExcelFile(xlsx_file2)
+sheet_names2 = xls2.sheet_names
+
+# Initialize the Dash app
+app = dash.Dash(__name__)
+
+# Define the layout of the dashboard
+app.layout = html.Div(style={'backgroundColor': '#F0F0F0'}, children=[
+    html.Div([
+        html.Div([
+            html.H3('Graph A'),
+            dcc.Dropdown(
+                id='dropdown-sheet-a',
+                options=[{'label': sheet_name, 'value': sheet_name} for sheet_name in sheet_names1],
+                value=sheet_names1[0],  # default value
+                placeholder="Select a sheet"
+            ),
+            dcc.Dropdown(
+                id='dropdown-rows-a',
+                multi=True,
+                placeholder="Select rows"
+            ),
+            dcc.Graph(id='graph-a')
+        ], style={'width': '30%', 'display': 'inline-block'}),
+        
+        html.Div([
+            html.H3('Graph B'),
+            dcc.Dropdown(
+                id='dropdown-sheet-b',
+                options=[{'label': sheet_name, 'value': sheet_name} for sheet_name in sheet_names1],
+                value=sheet_names1[0],  # default value
+                placeholder="Select a sheet"
+            ),
+            dcc.Dropdown(
+                id='dropdown-rows-b',
+                multi=True,
+                placeholder="Select rows"
+            ),
+            dcc.Graph(id='graph-b')
+        ], style={'width': '30%', 'display': 'inline-block', 'margin-left': '2%'}),
+        
+        html.Div([
+            html.H3('Graph C'),
+            dcc.Dropdown(
+                id='dropdown-sheet-c',
+                options=[{'label': sheet_name, 'value': sheet_name} for sheet_name in sheet_names1],
+                value=sheet_names1[0],  # default value
+                placeholder="Select a sheet"
+            ),
+            dcc.Dropdown(
+                id='dropdown-rows-c',
+                multi=True,
+                placeholder="Select rows"
+            ),
+            dcc.Graph(id='graph-c')
+        ], style={'width': '30%', 'display': 'inline-block', 'margin-left': '2%'})
+    ]),
+    
+    html.Div([
+        html.Div([
+            html.H3('Graph D'),
+            dcc.Dropdown(
+                id='dropdown-sheet-d',
+                options=[{'label': sheet_name, 'value': sheet_name} for sheet_name in sheet_names2],
+                value=sheet_names2[0],  # default value
+                placeholder="Select a sheet"
+            ),
+            dcc.Input(
+                id='input-date',
+                type='text',
+                placeholder='Enter dates...',
+                value='',
+                style={'margin-top': '10px'}
+            ),
+            dcc.Graph(id='graph-d')
+        ], style={'width': '60%', 'margin-top': '2%', 'text-align': 'center'})
+    ])
+])
+
+# Define callback to update rows dropdown based on selected sheet for Graph A
+@app.callback(
+    Output('dropdown-rows-a', 'options'),
+    [Input('dropdown-sheet-a', 'value')]
+)
+def update_rows_dropdown_a(sheet_name):
+    if sheet_name:
+        df = pd.read_excel(xlsx_file1, sheet_name=sheet_name, index_col=0)
+        options = [{'label': str(index), 'value': index} for index in df.index]
+        return options
+    return []
+
+# Define callback to update rows dropdown based on selected sheet for Graph B
+@app.callback(
+    Output('dropdown-rows-b', 'options'),
+    [Input('dropdown-sheet-b', 'value')]
+)
+def update_rows_dropdown_b(sheet_name):
+    if sheet_name:
+        df = pd.read_excel(xlsx_file1, sheet_name=sheet_name, index_col=0)
+        options = [{'label': str(index), 'value': index} for index in df.index]
+        return options
+    return []
+
+# Define callback to update rows dropdown based on selected sheet for Graph C
+@app.callback(
+    Output('dropdown-rows-c', 'options'),
+    [Input('dropdown-sheet-c', 'value')]
+)
+def update_rows_dropdown_c(sheet_name):
+    if sheet_name:
+        df = pd.read_excel(xlsx_file1, sheet_name=sheet_name, index_col=0)
+        options = [{'label': str(index), 'value': index} for index in df.index]
+        return options
+    return []
+
+# Define callback to update graph based on dropdown selection for Graph A
+@app.callback(
+    Output('graph-a', 'figure'),
+    [Input('dropdown-sheet-a', 'value'),
+     Input('dropdown-rows-a', 'value')]
+)
+def update_graph_a(sheet_name, selected_rows):
+    fig = go.Figure()
+    if sheet_name and selected_rows:
+        df = pd.read_excel(xlsx_file1, sheet_name=sheet_name, index_col=0)
+        for row_index in selected_rows:
+            row = df.loc[row_index]
+            fig.add_trace(go.Bar(x=row.index, y=row.values, name=str(row_index)))
+        fig.update_layout(title=f'{sheet_name} - Graph A', xaxis_title='X Axis', yaxis_title='Y Axis')
+    return fig
+
+# Define callback to update graph based on dropdown selection for Graph B
+@app.callback(
+    Output('graph-b', 'figure'),
+    [Input('dropdown-sheet-b', 'value'),
+     Input('dropdown-rows-b', 'value')]
+)
+def update_graph_b(sheet_name, selected_rows):
+    fig = go.Figure()
+    if sheet_name and selected_rows:
+        df = pd.read_excel(xlsx_file1, sheet_name=sheet_name, index_col=0)
+        for row_index in selected_rows:
+            row = df.loc[row_index]
+            fig.add_trace(go.Bar(x=row.index, y=row.values, name=str(row_index)))
+        fig.update_layout(title=f'{sheet_name} - Graph B', xaxis_title='X Axis', yaxis_title='Y Axis')
+    return fig
+
+# Define callback to update graph based on dropdown selection for Graph C
+@app.callback(
+    Output('graph-c', 'figure'),
+    [Input('dropdown-sheet-c', 'value'),
+     Input('dropdown-rows-c', 'value')]
+)
+def update_graph_c(sheet_name, selected_rows):
+    fig = go.Figure()
+    if sheet_name and selected_rows:
+        df = pd.read_excel(xlsx_file1, sheet_name=sheet_name, index_col=0)
+        for row_index in selected_rows:
+            row = df.loc[row_index]
+            fig.add_trace(go.Bar(x=row.index, y=row.values, name=str(row_index)))
+        fig.update_layout(title=f'{sheet_name} - Graph C', xaxis_title='X Axis', yaxis_title='Y Axis')
+    return fig
+
+# Define callback to update graph based on dropdown selection for Graph D
+@app.callback(
+    Output('graph-d', 'figure'),
+    [Input('dropdown-sheet-d', 'value'),
+     Input('input-date', 'value')]
+)
+def update_graph_d(sheet_name, input_date):
+    fig = go.Figure()
+    if sheet_name:
+        df = pd.read_excel(xlsx_file2, sheet_name=sheet_name, index_col=0)
+        fig.add_trace(go.Scatter(x=df.index, y=df['Adj Close'], mode='lines', name='Adj Close'))
+        fig.update_layout(title=f'{sheet_name} - Graph D', xaxis_title='Date', yaxis_title='Adj Close')
+        if input_date:
+            input_dates = [pd.to_datetime(date.strip()) for date in input_date.split(',')]
+            for date in input_dates:
+                fig.add_vline(x=date, line_dash="dash", line_color="gray")
+    return fig
+
+# Run the app
+if __name__ == '__main__':
+    app.run_server(debug=True)
