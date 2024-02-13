@@ -253,4 +253,4 @@ stock_symbol = Ticker
 dates = alpha_vantage_dates  # Example list of dates
 closing_prices = get_stock_closing_prices(stock_symbol, dates)
 
-# scarpes yahoo financials and yahoo adj close, creates two seperate spreadsheets. Dash board displays data. 
+# scrapes yahoo financials and yahoo adj close, creates two seperate spreadsheets. Dash board displays data. 
