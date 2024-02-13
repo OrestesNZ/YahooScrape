@@ -1,58 +1,256 @@
+import re
+from datetime import datetime, timedelta
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-import pandas as pd 
+import time
+from alpha_vantage.timeseries import TimeSeries
+import yfinance as yf
+import pandas as pd
+import os 
 
-# Create a WebDriver instance for Chrome
-driver = webdriver.Chrome(ChromeDriverManager().install())
+def fetch_financial_data(ticker, timeframe):
+    # List of statement types
+    statement_types = ['income statement', 'balance sheet', 'cash flow']#, 'balance sheet', 'cash flow']
 
-# Set up ChromeOptions
-chrome_options = Options()
-chrome_options.add_argument('--headless')  # Run in headless mode to avoid opening a visible browser window
+    # Initialize an empty dictionary to store DataFrames for each statement type
+    statement_dfs = {}
 
-# Navigate to a webpage
-driver.get("https://finance.yahoo.com/quote/MSFT/financials")
+    # Iterate through each statement type
+    for statement_type in statement_types:
+        # Define URL based on statement type
+        if statement_type == 'income statement':
+            url = f"https://finance.yahoo.com/quote/{ticker}/financials?p={ticker}"
+        elif statement_type == 'balance sheet':
+            url = f"https://finance.yahoo.com/quote/{ticker}/balance-sheet?p={ticker}"
+        elif statement_type == 'cash flow':
+            url = f"https://finance.yahoo.com/quote/{ticker}/cash-flow?p={ticker}"
+        else:
+            print("Invalid statement type. Choose 'Income Statement', 'Balance Sheet', or 'Cash Flow'.")
+            return None
 
-# Find an element by its ID (you may need to adjust the ID based on the structure of the webpage)
-element = driver.find_element("id", "mrt-node-Col1-1-Financials")
+        # Initialize the ChromeDriverManager service
+        chrome_service = Service(ChromeDriverManager().install())
 
-# Display the text content of the element
-#print("Text Content:", element.text)
+        # Create a WebDriver instance for Chrome using the service
+        driver = webdriver.Chrome(service=chrome_service)
 
-# Extract and split the text content into lines
-lines = element.text.split('\n')
+        # Set up ChromeOptions
+        chrome_options = Options()
+        chrome_options.add_argument('--headless')  # Run in headless mode to avoid opening a visible browser window
 
-# Close the browser
-driver.quit()
+        # Navigate to the constructed URL
+        driver.get(url)
 
-# Identify the start and end indices for data extraction
-start_index = lines.index('Total Revenue')
-end_index = lines.index('Tax Effect of Unusual Items')
+        # Click the button to switch to Quarterly if timeframe is 'Quarterly'
+        if timeframe.lower() == 'quarterly':
+            try:
+                button = driver.find_element("css selector", "button.P\(0px\).M\(0px\).C\(\$linkColor\).Bd\(0px\).O\(n\)")
+                button.click()
+                time.sleep(2)  # Allow time for page to load
+            except Exception as e:
+                print(f"Exception: {e}")
+                driver.quit()
+                return None
+        
+        # Find an element by its ID
+        element = driver.find_element("id", "mrt-node-Col1-1-Financials")
+        lines1 = element.text.split('\n')
 
-# Extract relevant data between start and end indices
-data_lines = lines[start_index:end_index]
+        # Extract dates
+        date_string = lines1[6]
+        ttm_index = date_string.find('TTM')
+        ttm = date_string[ttm_index: ttm_index + 3]
+        date_string_without_ttm = date_string.replace(ttm, '')
+        dates_list = date_string_without_ttm.split('/')
+        formatted_dates = [re.sub(r'(\d{1,2})/(\d{1,2})/(\d{4})', lambda x: f'{int(x.group(1)):02d}{int(x.group(2)):02d}{int(x.group(3)) % 100:02d}', date) for date in dates_list]
+        formatted_dates_with_space = ' '.join(formatted_dates)
+        formatted_dates_with_space_list = formatted_dates_with_space.split(' ')
+        for i, date in enumerate(formatted_dates_with_space_list):
+            if '202' in date and date[4:6] != '202':
+                formatted_dates_with_space_list[i] = date[:4] + '0' + date[4:]
+        modified_formatted_dates_with_space = ' '.join(formatted_dates_with_space_list)
 
-# Organize the data into a list of lists
-organized_data = [line.split() for line in data_lines]
-#words_and_numbers = [item.split() for sublist in organized_data for item in sublist]
+        input_string = modified_formatted_dates_with_space
+        split_index = input_string.find('202') + len('202') + 1
+        split_parts = []
+        while '202' in input_string:
+            first_part = input_string[:split_index]
+            second_part = input_string[split_index:]
+            split_parts.append(first_part)
+            split_index = second_part.find('202') + len('202') + 1
+            input_string = second_part
+        split_parts.append(input_string)
+        split_parts = split_parts[0:-1]
 
-# Process each sublist in organized_data accordingly
-for i, item in enumerate(organized_data):
-    organized_data[i] = [' '.join(item)] if i % 2 == 0 else item
+        # Organize the data into a list of lists
+        organized_data = [line.split() for line in lines1[7:]]
 
-#organized_data
+        # Process each sublist in organized_data accordingly
+        for i, item in enumerate(organized_data):
+            organized_data[i] = [' '.join(item)] if i % 2 == 0 else item
 
-# Use even-indexed sublists as the index for the DataFrame
-index = [organized_data[i][0] for i in range(0, len(organized_data), 2)]
+        # Use even-indexed sublists as the index for the DataFrame
+        index = [organized_data[i][0] for i in range(0, len(organized_data), 2)]
+        
+        # Create a pandas DataFrame
+        columns = ['TTM'] + split_parts
+        data = {column: [organized_data[i][j] if j < len(organized_data[i]) else '' for i in range(1, len(organized_data), 2)] for j, column in enumerate(columns)}                       
+        df = pd.DataFrame(data, columns=columns, index=index)
+        # Convert strings to numbers 
+        df = df.applymap(lambda x: pd.to_numeric(x.replace(',', ''), errors='coerce'))
+        # Set display format for floating-point numbers
+        pd.set_option('display.float_format', lambda x: '{:,.1f}'.format(x))
 
-#index
+        # Calculate extra fin data if it's an income statement
+        # alpha vantage 
+        if statement_type == 'income statement':
+            df = df.drop('TTM', axis=1)  # Drop the 'TTM' column
+            # Import Alpha Vantage Data
+            api_key = "ENTER API KEY"
+            symbol = ticker
+            ts = TimeSeries(key=api_key, output_format='pandas')
+            df_av, meta_data = ts.get_daily(symbol=symbol, outputsize='full')
+            
+            # Extract Dates
+            column_names = df.columns.tolist()
+            column_names = [i[1:] if i[0] == '0' else i for i in column_names]
+            alpha_vantage_dates = [datetime.strptime(date, '%m %d %Y').strftime('%Y-%m-%d') for date in column_names]
+            
+            # Retrieve Close Values
+            close_values = []
+            for date in alpha_vantage_dates:
+                if date in df_av.index.strftime('%Y-%m-%d'):
+                    close_values.append(df_av.loc[date]['4. close'])
+                else:
+                    adjusted_date = pd.to_datetime(date) - timedelta(days=1)
+                    adjusted_date_str = adjusted_date.strftime('%Y-%m-%d')
+                    if adjusted_date_str in df_av.index.strftime('%Y-%m-%d'):
+                        close_values.append(df_av.loc[adjusted_date_str]['4. close'])
+                    else:
+                        print(f"Date {adjusted_date_str} not found in the DataFrame.")
 
-# Create a pandas DataFrame
-# manually entered because the scraped format is annoying.
-columns = ['TTM', '6/29/2023', '6/29/2022', '6/29/2021', '6/29/2020']
+            # Assuming close_values is the list you provided
+            close_values_list = [value.iloc[0] for value in close_values]
 
-# Adjust the list comprehension to handle varying sublist lengths
-data = {column: [organized_data[i][j] if j < len(organized_data[i]) else '' for i in range(1, len(organized_data), 2)] for j, column in enumerate(columns)}                       
+            # Append to core df1
+            df.loc['Close Values'] = close_values_list
+            
+            # market cap, P/E Ratio 
 
-df = pd.DataFrame(data, columns=columns, index=index)
+            # Multiply each value in the 'Close_Values' row by the corresponding 'outstanding shares' value
+            # Convert 'Market Cap' values to numeric, ignoring errors
+           # df.loc['Market Cap'] = pd.to_numeric(df.loc['Market Cap'], errors='coerce')
 
+            # Format the 'Market Cap' row to make the numbers more readable
+            #df.loc['Market Cap'] = df.loc['Market Cap'].apply(lambda x: '{:,.2f}'.format(x) if not pd.isnull(x) else '')
+
+            # Calculate P/E ratio by dividing 'Close_Values' by 'EPS'
+            df.loc['P/E ratio'] = df.loc['Close Values'] / df.loc['Basic EPS']
+            
+            # Gross Margin 
+
+            # Calculate 'Gross Margin' row
+            df.loc['Gross Margin %'] = df.loc['Gross Profit'] / df.loc['Total Revenue'] * 100
+            
+            # Reverse the order of columns
+            df = df.iloc[:, ::-1]
+
+            # Calculate percentage change from the last column to the previous one
+            percentage_change = df.loc['Total Revenue'].pct_change() * 100
+
+            # Create a new DataFrame for percentage change
+            percentage_change_row = pd.DataFrame([percentage_change.values], columns=percentage_change.index, index=['Revenue Change %'])
+
+            # Reverse the order of columns back to the original
+            df = df.iloc[:, ::-1]
+            percentage_change_row = percentage_change_row.iloc[:, ::-1]
+
+            # Concatenate the new DataFrame to the original DataFrame
+            income_statement = pd.concat([df, percentage_change_row])
+        
+        if statement_type == 'cash flow':
+            cash_flow = df.drop('TTM', axis=1)  # Drop the 'TTM' column
+            
+        if statement_type == 'balance sheet':
+            balance_sheet = df.drop('TTM', axis=1)
+        
+        driver.quit()  # Close the browser
+
+        # Store the DataFrame for the current statement type in the dictionary
+        #statement_dfs[statement_type] = df
+        
+    return income_statement, balance_sheet, cash_flow, ticker, alpha_vantage_dates
+
+
+
+# function call, returns income statements, ticker(for writing to excel), alpha_vantage_dates(for yahoo finance date range)
+income_statement, balance_sheet, cash_flow, ticker, alpha_vantage_dates = fetch_financial_data('MARA', timeframe='Quarterly')
+
+# statement names for function input
+statement_dfs = [income_statement, balance_sheet, cash_flow]
+
+# sheet names for function input 
+sheet_names = ['income statement', 'cash flow', 'balance sheet'] 
+
+
+
+# Function to create a spreadsheet with multiple sheets from dataframes
+def create_spreadsheet(statement_dfs, sheet_names, ticker):
+    # Check if the Excel file already exists
+    file_path = f"{ticker}.xlsx"
+    if not os.path.isfile(file_path):
+        # If the file doesn't exist, create a new Excel file and write dataframes to it
+        with pd.ExcelWriter(file_path, mode='w', engine='openpyxl') as writer:
+            for df, sheet_name in zip(statement_dfs, sheet_names):
+                df.to_excel(writer, sheet_name=sheet_name, index=True)
+    else:
+        # If the Excel file exists, import it and update dataframes
+        with pd.ExcelWriter(file_path, mode='a', engine='openpyxl') as writer:
+            # Load existing sheets into a dictionary
+            existing_sheets = pd.read_excel(file_path, sheet_name=None)
+            
+            # Iterate over the statement dataframes and corresponding sheet names
+            for df, sheet_name in zip(statement_dfs, sheet_names):
+                # Check if the sheet exists in the Excel file
+                if sheet_name in existing_sheets:
+                    # Check if any new columns are present in the dataframe compared to the existing sheet
+                    existing_columns = existing_sheets[sheet_name].columns
+                    new_columns = [col for col in df.columns if col not in existing_columns]
+                    
+                    # If new columns are found, insert them at the beginning of the sheet
+                    if new_columns:
+                        existing_sheets[sheet_name] = pd.concat([df[new_columns], existing_sheets[sheet_name]], axis=1)
+                else:
+                    # If the sheet doesn't exist, write the dataframe to a new sheet
+                    df.to_excel(writer, sheet_name=sheet_name, index=True)
+            
+            # Write the updated sheets to the Excel file
+            for sheet_name, df in existing_sheets.items():
+                df.to_excel(writer, sheet_name=sheet_name, index=True)
+
+# create spreadsheet, save to path
+create_spreadsheet(statement_dfs, sheet_names, ticker)
+
+# closing prices, to crate graph 4 in dash
+def get_stock_closing_prices(stock_symbol, dates):
+    # Find the minimum date in the list
+    start_date = min(dates)
+    
+    # Get stock data from Yahoo Finance
+    stock_data = yf.download(stock_symbol, start=start_date)
+    
+    # Extract the closing prices
+    closing_prices = stock_data['Adj Close']
+    
+    output_file = f"{stock_symbol}Close.xlsx"
+
+    closing_prices.to_excel(output_file)
+
+# Example usage:
+stock_symbol = Ticker
+dates = alpha_vantage_dates  # Example list of dates
+closing_prices = get_stock_closing_prices(stock_symbol, dates)
+
+# scarpes yahoo financials and yahoo adj close, creates two seperate spreadsheets. Dash board displays data. 
