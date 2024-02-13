@@ -1,3 +1,6 @@
+# scrapes yahoo financials and yahoo adj close, creates two seperate spreadsheets. Dash board displays data. 
+# input can be annual or quarterly (line 192)
+
 import re
 from datetime import datetime, timedelta
 from selenium import webdriver
@@ -186,7 +189,7 @@ def fetch_financial_data(ticker, timeframe):
 
 
 # function call, returns income statements, ticker(for writing to excel), alpha_vantage_dates(for yahoo finance date range)
-income_statement, balance_sheet, cash_flow, ticker, alpha_vantage_dates = fetch_financial_data('MARA', timeframe='Quarterly')
+income_statement, balance_sheet, cash_flow, ticker, alpha_vantage_dates = fetch_financial_data('TICKER', timeframe='Quarterly')
 
 # statement names for function input
 statement_dfs = [income_statement, balance_sheet, cash_flow]
@@ -243,14 +246,10 @@ def get_stock_closing_prices(stock_symbol, dates):
     
     # Extract the closing prices
     closing_prices = stock_data['Adj Close']
-    
     output_file = f"{stock_symbol}Close.xlsx"
-
     closing_prices.to_excel(output_file)
 
 # Example usage:
 stock_symbol = Ticker
 dates = alpha_vantage_dates  # Example list of dates
 closing_prices = get_stock_closing_prices(stock_symbol, dates)
-
-# scrapes yahoo financials and yahoo adj close, creates two seperate spreadsheets. Dash board displays data. 
