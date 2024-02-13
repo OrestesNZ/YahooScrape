@@ -15,7 +15,7 @@ import os
 
 def fetch_financial_data(ticker, timeframe):
     # List of statement types
-    statement_types = ['income statement', 'balance sheet', 'cash flow']#, 'balance sheet', 'cash flow']
+    statement_types = ['income statement', 'balance sheet', 'cash flow']
 
     # Initialize an empty dictionary to store DataFrames for each statement type
     statement_dfs = {}
