@@ -1,30 +1,32 @@
-# Dash Dashboard with Multiple Graphs
+# Yahoo Financial Data Scraper and Dashboard
 
-This Dash dashboard application allows users to visualize data from multiple spreadsheets using Plotly graphs. The dashboard includes four graphs: Graphs A, B, and C display bar charts based on the selected spreadsheet and rows, while Graph D displays a line chart of stock 'Adj Close' prices from a separate spreadsheet. Users can select the sheet and rows to display on Graphs A, B, and C, and input dates to draw vertical lines on Graph D.
+This script scrapes financial data from Yahoo Finance and creates two separate spreadsheets: one for financial statements (income statement, balance sheet, cash flow) and one for stock closing prices. It then displays the data on a Dash dashboard.
 
 ## Features
 
-- Import and visualize data from multiple Excel spreadsheets
-- Display bar charts for Graphs A, B, and C
-- Display a line chart for Graph D with 'Adj Close' stock prices
-- Select specific rows and sheets to display on Graphs A, B, and C
-- Input dates to draw vertical lines on Graph D at those dates
+- Scrapes financial data from Yahoo Finance
+- Creates separate spreadsheets for financial statements and stock closing prices
+- Displays financial data on a Dash dashboard
+- Allows selection of annual or quarterly data
 
 ## Installation
 
 1. Clone the repository:
 
-2. Install the required dependencies:
+2. Install the required Python libraries:
 
-3. Run the Dash app:
-
-4. Open a web browser and navigate to http://127.0.0.1:8050/ to view the dashboard.
+3. Run the script:
 
 ## Usage
 
-- Select a spreadsheet and specific rows to display on Graphs A, B, and C using the dropdown menus.
-- Input dates in the text box to draw vertical lines on Graph D at those dates.
-- Explore the visualized data on the dashboard.
+- Run the script and wait for it to scrape financial data and create spreadsheets.
+- Open the Dash dashboard in a web browser by navigating to http://127.0.0.1:8050/.
+- Explore the financial data using the interactive dashboard.
+
+## Customization
+
+- Modify the `ticker` variable to specify the stock ticker symbol you want to scrape data for.
+- Choose the desired timeframe ('Annual' or 'Quarterly') by adjusting the `timeframe` argument in the `fetch_financial_data()` function call.
 
 ## Contributing
 
@@ -33,5 +35,3 @@ Contributions are welcome! If you find any issues or have suggestions for improv
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-
